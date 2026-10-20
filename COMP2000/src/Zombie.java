@@ -5,6 +5,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import javax.imageio.ImageIO;
@@ -90,31 +91,15 @@ public class Zombie extends Entity {
         }
     }
 
-    /** Finds the closest active, visible civilian in range. */
+    /** Finds the closest active, visible civilian in range using a stream pipeline. */
     private Human findTarget(World world) {
-        Human closest = null;
-        double closestDistance = DETECTION_RADIUS;
-
-        List<Entity> nearby =
-                world.getNearby(this, DETECTION_RADIUS);
-
-        for (Entity entity : nearby) {
-            if (!(entity instanceof Human)
-                    || entity instanceof Military) {
-                continue;
-            }
-
-            Human human = (Human) entity;
-            double distance = distanceTo(human);
-
-            if (!human.isHidden()
-                    && distance < closestDistance) {
-                closest = human;
-                closestDistance = distance;
-            }
-        }
-
-        return closest;
+        return world.getNearby(this, DETECTION_RADIUS).stream()
+                .filter(entity -> entity instanceof Human
+                        && !(entity instanceof Military))
+                .map(entity -> (Human) entity)
+                .filter(human -> !human.isHidden())
+                .min(Comparator.comparingDouble(this::distanceTo))
+                .orElse(null);
     }
 
     private void chase(World world) {
