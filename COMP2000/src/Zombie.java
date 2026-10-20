@@ -5,18 +5,21 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Random;
 import javax.imageio.ImageIO;
 
-/** A zombie that wanders, chases visible civilians, and infects on contact. */
+/**
+ * A zombie that wanders, chases visible civilians, and infects on contact.
+ * Uses the State design pattern: behaviour is delegated to a {@link ZombieState}
+ * object ({@link WanderingState} or {@link ChasingState}) which handles
+ * transitions between modes.
+ */
 public class Zombie extends Entity {
 
-    private static final double CHASE_SPEED = 1.4;
-    private static final double WANDER_SPEED = 0.6;
-    private static final double DETECTION_RADIUS = 300.0;
-    private static final double INFECT_DISTANCE = 12.0;
+    static final double CHASE_SPEED = 1.4;
+    static final double WANDER_SPEED = 0.6;
+    static final double DETECTION_RADIUS = 300.0;
+    static final double INFECT_DISTANCE = 12.0;
     private static final int WIDTH = 38;
     private static final int HEIGHT = 54;
     private static final int FRAME_TICKS = 8;
@@ -37,6 +40,7 @@ public class Zombie extends Entity {
     private boolean moving;
     private boolean facingLeft;
     private Facing facing = Facing.FRONT;
+    private ZombieState state;
 
     public Zombie(double x, double y) {
         super(x, y);
@@ -72,37 +76,32 @@ public class Zombie extends Entity {
 
         backIdle = crop(sheet, 4, 1, frameWidth, frameHeight);
 
+        state = new WanderingState();
         chooseNewDirection();
     }
 
     @Override
     public void update(World world) {
-        target = findTarget(world);
-
-        if (target == null) {
-            wander(world);
-            return;
-        }
-
-        chase(world);
-
-        if (distanceTo(target) <= INFECT_DISTANCE) {
-            target.infect();
-        }
+        state.execute(this, world);
     }
 
-    /** Finds the closest active, visible civilian in range using a stream pipeline. */
-    private Human findTarget(World world) {
-        return world.getNearby(this, DETECTION_RADIUS).stream()
-                .filter(entity -> entity instanceof Human
-                        && !(entity instanceof Military))
-                .map(entity -> (Human) entity)
-                .filter(human -> !human.isHidden())
-                .min(Comparator.comparingDouble(this::distanceTo))
-                .orElse(null);
+    ZombieState getState() {
+        return state;
     }
 
-    private void chase(World world) {
+    void setState(ZombieState state) {
+        this.state = state;
+    }
+
+    Human getTarget() {
+        return target;
+    }
+
+    void setTarget(Human target) {
+        this.target = target;
+    }
+
+    void chase(World world) {
         double xDifference = target.getX() - getX();
         double yDifference = target.getY() - getY();
         double distance = Math.hypot(
@@ -120,7 +119,7 @@ public class Zombie extends Entity {
         }
     }
 
-    private void wander(World world) {
+    void wander(World world) {
         if (wanderTicks-- <= 0) {
             chooseNewDirection();
         }
