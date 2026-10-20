@@ -8,26 +8,26 @@ public class WanderingState implements ZombieState {
 
     @Override
     public void execute(Zombie zombie, World world) {
-        Human target = findTarget(zombie, world);
-
-        if (target != null) {
+        try {
+            Human target = findTarget(zombie, world);
             zombie.setTarget(target);
             zombie.setState(new ChasingState());
             zombie.getState().execute(zombie, world);
-            return;
+        } catch (TargetNotFoundException exception) {
+            zombie.wander(world);
         }
-
-        zombie.wander(world);
     }
 
-    private Human findTarget(Zombie zombie, World world) {
+    private Human findTarget(Zombie zombie, World world)
+            throws TargetNotFoundException {
         return world.getNearby(zombie, Zombie.DETECTION_RADIUS).stream()
                 .filter(entity -> entity instanceof Human
                         && !(entity instanceof Military))
                 .map(entity -> (Human) entity)
                 .filter(human -> !human.isHidden())
                 .min(Comparator.comparingDouble(zombie::distanceTo))
-                .orElse(null);
+                .orElseThrow(() -> new TargetNotFoundException(
+                        "No visible civilian in range"));
     }
 
     @Override
