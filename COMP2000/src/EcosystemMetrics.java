@@ -14,12 +14,17 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 /**
- * Observes the simulation world each tick and computes ecosystem health
- * metrics using streams, lambdas, groupingBy, summarizingDouble, and a
- * custom collector for time-series population data.
+ * Computes ecosystem health metrics from the simulation world using streams
+ * and collectors. Demonstrates:
+ * <ul>
+ *     <li>{@code Collectors.groupingBy} — species to population count</li>
+ *     <li>{@code Collectors.summarizingDouble} — min/max/avg energy per species</li>
+ *     <li>{@link PopulationTimeSeriesCollector} — custom collector that
+ *         accumulates tick-by-tick population data into a time series</li>
+ * </ul>
  *
- * Implements the Observer pattern: the World calls {@link #recordTick(World)}
- * each update, and this class accumulates the data for later querying.
+ * Usage: call {@link #recordTick(World)} each simulation tick to accumulate
+ * data, then query with the getter methods.
  */
 public class EcosystemMetrics {
 
@@ -28,8 +33,8 @@ public class EcosystemMetrics {
     private long lastRecordedTick = -1;
 
     /**
-     * Called each tick by the World. Snapshots population counts and energy
-     * statistics per species using stream collectors.
+     * Snapshots population counts and energy statistics per species using
+     * {@code Collectors.groupingBy} and {@code Collectors.summarizingDouble}.
      */
     public void recordTick(World world) {
         if (world.getTick() == lastRecordedTick) {
@@ -76,8 +81,8 @@ public class EcosystemMetrics {
 
     /**
      * Uses the custom {@link PopulationTimeSeriesCollector} to produce a
-     * time-series of population data, mapping each species to a list of its
-     * count at each recorded tick. Useful for charting ecosystem dynamics.
+     * time-series mapping each species to a list of its count at each
+     * recorded tick.
      */
     public Map<String, List<Long>> getPopulationTimeSeries() {
         return populationHistory.stream()
@@ -85,8 +90,8 @@ public class EcosystemMetrics {
     }
 
     /**
-     * Computes a single ecosystem health score from the latest tick.
-     * A balanced ecosystem (humans surviving, zombies contained) scores higher.
+     * Computes an ecosystem health score from the latest tick.
+     * Higher when humans survive, zombies are contained, and resources exist.
      */
     public double getHealthScore() {
         Map<String, Long> populations = getCurrentPopulations();
@@ -107,8 +112,8 @@ public class EcosystemMetrics {
     }
 
     /**
-     * Returns the infection rate: ratio of zombies to total population
-     * (humans + zombies + military) as a percentage.
+     * Infection rate: zombies as a percentage of all living entities
+     * (humans + zombies + military).
      */
     public double getInfectionRate() {
         Map<String, Long> populations = getCurrentPopulations();
@@ -129,9 +134,9 @@ public class EcosystemMetrics {
 
     /**
      * Custom collector that accumulates a stream of per-tick population maps
-     * into a time-series: species name to list of counts across all ticks.
-     * Demonstrates Collector interface implementation with supplier, accumulator,
-     * combiner, and finisher — suitable for parallel stream use.
+     * into a time series: species name to list of counts across all ticks.
+     * Implements the full {@link Collector} interface (supplier, accumulator,
+     * combiner, finisher, characteristics) and supports parallel streams.
      */
     static class PopulationTimeSeriesCollector implements
             Collector<Map<String, Long>,
