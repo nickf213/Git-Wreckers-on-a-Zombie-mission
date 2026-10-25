@@ -187,7 +187,7 @@ public class Zombie extends Entity {
             move(
                     xDifference / distance,
                     yDifference / distance,
-                    CHASE_SPEED,
+                    CHASE_SPEED * frenzyMultiplier(world),
                     world
             );
         }
