@@ -174,9 +174,15 @@ public class Zombie extends Entity {
                 .sum();
     }
 
-    /** Speed boost from 1.0 up to 1.5 as more civilians crowd into view. */
+    /**
+     * Speed boost from 1.0 up to 1.5 as more civilians crowd into view, plus
+     * a 0.25 lunge when anyone is in the CLOSE distance band.
+     */
     double frenzyMultiplier(World world) {
-        return 1.0 + Math.min(0.5, preyScore(world) * 0.2);
+        double lunge = civiliansByDistanceBand(world)
+                .getOrDefault("CLOSE", 0L) > 0 ? 0.25 : 0.0;
+
+        return 1.0 + Math.min(0.5, preyScore(world) * 0.2) + lunge;
     }
 
     /** An infected human rises as a new zombie where they fell. */
