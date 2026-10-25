@@ -159,6 +159,20 @@ public class Zombie extends Entity {
                 total -> total[0]));
     }
 
+    /**
+     * Total prey score across every zombie, computed with a parallel stream.
+     * Thread-safe because each task only reads the world and its own zombie,
+     * the lambdas hold no shared mutable state, and the results are combined
+     * by DoubleStream.sum(). Call it between ticks, not during world.update().
+     */
+    static double totalPreyScore(World world) {
+        return world.getEntities().parallelStream()
+                .filter(entity -> entity instanceof Zombie)
+                .map(entity -> (Zombie) entity)
+                .mapToDouble(zombie -> zombie.preyScore(world))
+                .sum();
+    }
+
     /** Speed boost from 1.0 up to 1.5 as more civilians crowd into view. */
     double frenzyMultiplier(World world) {
         return 1.0 + Math.min(0.5, preyScore(world) * 0.2);
