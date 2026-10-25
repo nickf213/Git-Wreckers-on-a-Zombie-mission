@@ -5,6 +5,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.util.Comparator;
 import java.util.Random;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
@@ -104,6 +105,14 @@ public class Zombie extends Entity {
                         && !(entity instanceof Military))
                 .map(entity -> (Human) entity)
                 .filter(human -> !human.isHidden());
+    }
+
+    /** Closest visible civilian, or TargetNotFoundException if none is in view. */
+    Human findTarget(World world) throws TargetNotFoundException {
+        return visibleCivilians(world)
+                .min(Comparator.comparingDouble(this::distanceTo))
+                .orElseThrow(() -> new TargetNotFoundException(
+                        "No visible civilian in range"));
     }
 
     /** Number of civilians currently in view, counted with a stream. */
