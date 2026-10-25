@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Comparator;
+import java.util.DoubleSummaryStatistics;
 import java.util.Map;
 import java.util.Random;
 import java.util.function.BiConsumer;
@@ -133,6 +134,12 @@ public class Zombie extends Entity {
                             ? "MEDIUM" : "FAR";
                 },
                 Collectors.counting()));
+    }
+
+    /** Min, max and average energy of the civilians this zombie can see. */
+    DoubleSummaryStatistics visibleCivilianEnergy(World world) {
+        return visibleCivilians(world)
+                .collect(Collectors.summarizingDouble(Human::getEnergy));
     }
 
     private void startChase(Human newTarget, World world) {
