@@ -80,6 +80,8 @@ public class Human extends Entity {
      * Attempts to enter a building with available capacity. A hidden human is
      * not drawn and should be ignored by zombie target-selection code.
      */
+    // REVIEW: building.enter() runs before leaveBuilding(), so a human already sheltered elsewhere
+    // is moved to the old entrance while hidden. Calling leaveBuilding() first (and restoring on failure) avoids that.
     public boolean enterBuilding(Building building) {
         if (building == null || !isActive()) {
             return false;
@@ -245,6 +247,7 @@ public class Human extends Entity {
         advanceWalkAnimation();
     }
 
+    // REVIEW: the src / COMP2000/src fallback is copy-pasted in Human, Food, Building, SimPanel and Zombie. A shared asset-loading helper would remove four copies.
     private Image loadImage(String imagePath) {
         URL imageUrl = Human.class.getResource(imagePath);
         if (imageUrl != null) {
@@ -311,6 +314,7 @@ public class Human extends Entity {
         return frontWalkFrames[walkFrame % frontWalkFrames.length];
     }
 
+    // REVIEW: Facing is also defined in Zombie and Military. A shared enum or base class would remove the duplication.
     private enum Facing {
         FRONT,
         SIDE,
