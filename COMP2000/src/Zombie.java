@@ -33,6 +33,7 @@ public class Zombie extends Entity {
     private static final double WANDER_SPEED = 0.6;
     private static final double DETECTION_RADIUS = 300.0;
     private static final double INFECT_DISTANCE = 12.0;
+    private static final int MAX_ZOMBIES = 12;
     private static final int WIDTH = 38;
     private static final int HEIGHT = 54;
     private static final int FRAME_TICKS = 8;
@@ -180,7 +181,13 @@ public class Zombie extends Entity {
 
     /** An infected human rises as a new zombie where they fell. */
     private void spreadInfection(Human victim, World world) {
-        world.addEntity(new Zombie(victim.getX(), victim.getY()));
+        long zombieCount = world.getEntities().stream()
+                .filter(entity -> entity instanceof Zombie && entity.isActive())
+                .count();
+
+        if (zombieCount < MAX_ZOMBIES) {
+            world.addEntity(new Zombie(victim.getX(), victim.getY()));
+        }
     }
 
     private void startChase(Human newTarget, World world) {
