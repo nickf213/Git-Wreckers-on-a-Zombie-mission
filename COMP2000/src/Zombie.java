@@ -10,6 +10,7 @@ import java.util.DoubleSummaryStatistics;
 import java.util.Map;
 import java.util.Random;
 import java.util.function.BiConsumer;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
@@ -140,6 +141,22 @@ public class Zombie extends Entity {
     DoubleSummaryStatistics visibleCivilianEnergy(World world) {
         return visibleCivilians(world)
                 .collect(Collectors.summarizingDouble(Human::getEnergy));
+    }
+
+    /**
+     * Prey score from a custom collector: each visible civilian adds up to
+     * 1.0, more the closer they are, so a crowd nearby scores higher.
+     */
+    double preyScore(World world) {
+        return visibleCivilians(world).collect(Collector.of(
+                () -> new double[1],
+                (total, human) -> total[0] +=
+                        1.0 - distanceTo(human) / DETECTION_RADIUS,
+                (left, right) -> {
+                    left[0] += right[0];
+                    return left;
+                },
+                total -> total[0]));
     }
 
     private void startChase(Human newTarget, World world) {
