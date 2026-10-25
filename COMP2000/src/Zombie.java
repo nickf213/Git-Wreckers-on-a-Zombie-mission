@@ -29,7 +29,7 @@ import javax.imageio.ImageIO;
  */
 public class Zombie extends Entity {
 
-    private static final double CHASE_SPEED = 1.4;
+    private static final double CHASE_SPEED = 2.4;
     private static final double WANDER_SPEED = 0.6;
     private static final double DETECTION_RADIUS = 300.0;
     private static final double INFECT_DISTANCE = 12.0;
