@@ -178,6 +178,11 @@ public class Zombie extends Entity {
         return 1.0 + Math.min(0.5, preyScore(world) * 0.2);
     }
 
+    /** An infected human rises as a new zombie where they fell. */
+    private void spreadInfection(Human victim, World world) {
+        world.addEntity(new Zombie(victim.getX(), victim.getY()));
+    }
+
     private void startChase(Human newTarget, World world) {
         target = newTarget;
         mode = Mode.CHASING;
@@ -421,6 +426,7 @@ public class Zombie extends Entity {
 
             if (zombie.distanceTo(target) <= INFECT_DISTANCE) {
                 target.infect();
+                zombie.spreadInfection(target, world);
                 zombie.stopChase();
             }
         });
