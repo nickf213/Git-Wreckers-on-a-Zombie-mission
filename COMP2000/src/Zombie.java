@@ -7,14 +7,14 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.Comparator;
 import java.util.Random;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 
 /**
  * A zombie that wanders, chases visible civilians, and infects on contact.
- * Uses the State design pattern: behaviour is delegated to a {@link ZombieState}
- * object ({@link WanderingState} or {@link ChasingState}) which handles
- * transitions between modes.
+ * Uses the State design pattern: behaviour is delegated to the current
+ * {@link Mode}, whose lambda behaviour handles transitions between modes.
  *
  * <p>Why State: the zombie's behaviour changes at runtime based on what it
  * sees, and each mode decides its own next mode. Alternatives considered:
@@ -25,10 +25,10 @@ import javax.imageio.ImageIO;
  */
 public class Zombie extends Entity {
 
-    static final double CHASE_SPEED = 1.4;
-    static final double WANDER_SPEED = 0.6;
-    static final double DETECTION_RADIUS = 300.0;
-    static final double INFECT_DISTANCE = 12.0;
+    private static final double CHASE_SPEED = 1.4;
+    private static final double WANDER_SPEED = 0.6;
+    private static final double DETECTION_RADIUS = 300.0;
+    private static final double INFECT_DISTANCE = 12.0;
     private static final int WIDTH = 38;
     private static final int HEIGHT = 54;
     private static final int FRAME_TICKS = 8;
@@ -49,7 +49,7 @@ public class Zombie extends Entity {
     private boolean moving;
     private boolean facingLeft;
     private Facing facing = Facing.FRONT;
-    private ZombieState state;
+    private Mode mode = Mode.WANDERING;
 
     public Zombie(double x, double y) {
         super(x, y);
@@ -85,13 +85,12 @@ public class Zombie extends Entity {
 
         backIdle = crop(sheet, 4, 1, frameWidth, frameHeight);
 
-        state = new WanderingState();
         chooseNewDirection();
     }
 
     @Override
     public void update(World world) {
-        state.execute(this, world);
+        mode.behaviour.accept(this, world);
     }
 
     /**
@@ -120,23 +119,18 @@ public class Zombie extends Entity {
         return visibleCivilians(world).count();
     }
 
-    ZombieState getState() {
-        return state;
+    private void startChase(Human newTarget, World world) {
+        target = newTarget;
+        mode = Mode.CHASING;
+        mode.behaviour.accept(this, world);
     }
 
-    void setState(ZombieState state) {
-        this.state = state;
+    private void stopChase() {
+        target = null;
+        mode = Mode.WANDERING;
     }
 
-    Human getTarget() {
-        return target;
-    }
-
-    void setTarget(Human target) {
-        this.target = target;
-    }
-
-    void chase(World world) {
+    private void chase(World world) {
         double xDifference = target.getX() - getX();
         double yDifference = target.getY() - getY();
         double distance = Math.hypot(
@@ -154,7 +148,7 @@ public class Zombie extends Entity {
         }
     }
 
-    void wander(World world) {
+    private void wander(World world) {
         if (wanderTicks-- <= 0) {
             chooseNewDirection();
         }
@@ -343,6 +337,40 @@ public class Zombie extends Entity {
         graphics.dispose();
 
         return sheet;
+    }
+
+    /** Zombie states; each lambda replaces what would be a State subclass. */
+    private enum Mode {
+        WANDERING((zombie, world) -> {
+            try {
+                zombie.startChase(zombie.findTarget(world), world);
+            } catch (TargetNotFoundException exception) {
+                zombie.wander(world);
+            }
+        }),
+        CHASING((zombie, world) -> {
+            Human target = zombie.target;
+
+            if (!target.isActive() || target.isHidden()
+                    || zombie.distanceTo(target) > DETECTION_RADIUS) {
+                zombie.stopChase();
+                zombie.wander(world);
+                return;
+            }
+
+            zombie.chase(world);
+
+            if (zombie.distanceTo(target) <= INFECT_DISTANCE) {
+                target.infect();
+                zombie.stopChase();
+            }
+        });
+
+        private final BiConsumer<Zombie, World> behaviour;
+
+        Mode(BiConsumer<Zombie, World> behaviour) {
+            this.behaviour = behaviour;
+        }
     }
 
     private enum Facing {
