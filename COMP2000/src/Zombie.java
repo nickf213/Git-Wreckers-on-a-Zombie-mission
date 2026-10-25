@@ -159,6 +159,11 @@ public class Zombie extends Entity {
                 total -> total[0]));
     }
 
+    /** Speed boost from 1.0 up to 1.5 as more civilians crowd into view. */
+    double frenzyMultiplier(World world) {
+        return 1.0 + Math.min(0.5, preyScore(world) * 0.2);
+    }
+
     private void startChase(Human newTarget, World world) {
         target = newTarget;
         mode = Mode.CHASING;
