@@ -6,8 +6,10 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.Random;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 
@@ -117,6 +119,20 @@ public class Zombie extends Entity {
     /** Number of civilians currently in view, counted with a stream. */
     long countVisibleCivilians(World world) {
         return visibleCivilians(world).count();
+    }
+
+    /** Visible civilians grouped into CLOSE, MEDIUM and FAR distance bands. */
+    Map<String, Long> civiliansByDistanceBand(World world) {
+        return visibleCivilians(world).collect(Collectors.groupingBy(
+                human -> {
+                    double distance = distanceTo(human);
+                    if (distance < DETECTION_RADIUS / 3) {
+                        return "CLOSE";
+                    }
+                    return distance < DETECTION_RADIUS * 2 / 3
+                            ? "MEDIUM" : "FAR";
+                },
+                Collectors.counting()));
     }
 
     private void startChase(Human newTarget, World world) {
