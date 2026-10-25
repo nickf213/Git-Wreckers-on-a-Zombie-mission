@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Random;
+import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 
 /**
@@ -13,6 +14,13 @@ import javax.imageio.ImageIO;
  * Uses the State design pattern: behaviour is delegated to a {@link ZombieState}
  * object ({@link WanderingState} or {@link ChasingState}) which handles
  * transitions between modes.
+ *
+ * <p>Why State: the zombie's behaviour changes at runtime based on what it
+ * sees, and each mode decides its own next mode. Alternatives considered:
+ * an if/else on a flag (the original code; grows messy with each new mode),
+ * an enum with a switch (still one big method), and Strategy as used by
+ * Military (fits swapping an algorithm, but the strategy does not decide
+ * when to switch, which is the core need here).
  */
 public class Zombie extends Entity {
 
@@ -83,6 +91,24 @@ public class Zombie extends Entity {
     @Override
     public void update(World world) {
         state.execute(this, world);
+    }
+
+    /**
+     * Civilians this zombie can currently see: active, not soldiers, not
+     * sheltering. Returned as a lazy stream so callers choose the terminal
+     * operation (min for targeting, count for threat level, and so on).
+     */
+    Stream<Human> visibleCivilians(World world) {
+        return world.getNearby(this, DETECTION_RADIUS).stream()
+                .filter(entity -> entity instanceof Human
+                        && !(entity instanceof Military))
+                .map(entity -> (Human) entity)
+                .filter(human -> !human.isHidden());
+    }
+
+    /** Number of civilians currently in view, counted with a stream. */
+    long countVisibleCivilians(World world) {
+        return visibleCivilians(world).count();
     }
 
     ZombieState getState() {

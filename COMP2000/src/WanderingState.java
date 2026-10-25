@@ -20,11 +20,7 @@ public class WanderingState implements ZombieState {
 
     private Human findTarget(Zombie zombie, World world)
             throws TargetNotFoundException {
-        return world.getNearby(zombie, Zombie.DETECTION_RADIUS).stream()
-                .filter(entity -> entity instanceof Human
-                        && !(entity instanceof Military))
-                .map(entity -> (Human) entity)
-                .filter(human -> !human.isHidden())
+        return zombie.visibleCivilians(world)
                 .min(Comparator.comparingDouble(zombie::distanceTo))
                 .orElseThrow(() -> new TargetNotFoundException(
                         "No visible civilian in range"));
