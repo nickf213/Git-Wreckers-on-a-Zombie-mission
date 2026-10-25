@@ -115,6 +115,8 @@ public class Human extends Entity {
     }
 
     /** Called by a zombie when it catches this human. */
+    // REVIEW: infect() only deactivates the human, so zombies never multiply and the zombie count can only fall.
+    // Spawning a Zombie at this position (world.addEntity) when someone is infected would add emergent behaviour.
     public void infect() {
         leaveBuilding();
         deactivate();
