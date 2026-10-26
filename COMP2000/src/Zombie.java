@@ -5,17 +5,35 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.util.List;
+import java.util.Comparator;
+import java.util.DoubleSummaryStatistics;
+import java.util.Map;
 import java.util.Random;
+import java.util.function.BiConsumer;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.imageio.ImageIO;
 
-/** A zombie that wanders, chases visible civilians, and infects on contact. */
+/**
+ * A zombie that wanders, chases visible civilians, and infects on contact.
+ * Uses the State design pattern: behaviour is delegated to the current
+ * {@link Mode}, whose lambda behaviour handles transitions between modes.
+ *
+ * <p>Why State: the zombie's behaviour changes at runtime based on what it
+ * sees, and each mode decides its own next mode. Alternatives considered:
+ * an if/else on a flag (the original code; grows messy with each new mode),
+ * an enum with a switch (still one big method), and Strategy as used by
+ * Military (fits swapping an algorithm, but the strategy does not decide
+ * when to switch, which is the core need here).
+ */
 public class Zombie extends Entity {
 
-    private static final double CHASE_SPEED = 1.4;
+    private static final double CHASE_SPEED = 2.4;
     private static final double WANDER_SPEED = 0.6;
     private static final double DETECTION_RADIUS = 300.0;
     private static final double INFECT_DISTANCE = 12.0;
+    private static final int MAX_ZOMBIES = 12;
     private static final int WIDTH = 38;
     private static final int HEIGHT = 54;
     private static final int FRAME_TICKS = 8;
@@ -36,6 +54,7 @@ public class Zombie extends Entity {
     private boolean moving;
     private boolean facingLeft;
     private Facing facing = Facing.FRONT;
+    private Mode mode = Mode.WANDERING;
 
     public Zombie(double x, double y) {
         super(x, y);
@@ -76,45 +95,116 @@ public class Zombie extends Entity {
 
     @Override
     public void update(World world) {
-        target = findTarget(world);
+        mode.behaviour.accept(this, world);
+    }
 
-        if (target == null) {
-            wander(world);
-            return;
-        }
+    /**
+     * Civilians this zombie can currently see: active, not soldiers, not
+     * sheltering. Returned as a lazy stream so callers choose the terminal
+     * operation (min for targeting, count for threat level, and so on).
+     */
+    Stream<Human> visibleCivilians(World world) {
+        return world.getNearby(this, DETECTION_RADIUS).stream()
+                .filter(entity -> entity instanceof Human
+                        && !(entity instanceof Military))
+                .map(entity -> (Human) entity)
+                .filter(human -> !human.isHidden());
+    }
 
-        chase(world);
+    /** Closest visible civilian, or TargetNotFoundException if none is in view. */
+    Human findTarget(World world) throws TargetNotFoundException {
+        return visibleCivilians(world)
+                .min(Comparator.comparingDouble(this::distanceTo))
+                .orElseThrow(() -> new TargetNotFoundException(
+                        "No visible civilian in range"));
+    }
 
-        if (distanceTo(target) <= INFECT_DISTANCE) {
-            target.infect();
+    /** Number of civilians currently in view, counted with a stream. */
+    long countVisibleCivilians(World world) {
+        return visibleCivilians(world).count();
+    }
+
+    /** Visible civilians grouped into CLOSE, MEDIUM and FAR distance bands. */
+    Map<String, Long> civiliansByDistanceBand(World world) {
+        return visibleCivilians(world).collect(Collectors.groupingBy(
+                human -> {
+                    double distance = distanceTo(human);
+                    if (distance < DETECTION_RADIUS / 3) {
+                        return "CLOSE";
+                    }
+                    return distance < DETECTION_RADIUS * 2 / 3
+                            ? "MEDIUM" : "FAR";
+                },
+                Collectors.counting()));
+    }
+
+    /** Min, max and average energy of the civilians this zombie can see. */
+    DoubleSummaryStatistics visibleCivilianEnergy(World world) {
+        return visibleCivilians(world)
+                .collect(Collectors.summarizingDouble(Human::getEnergy));
+    }
+
+    /**
+     * Prey score from a custom collector: each visible civilian adds up to
+     * 1.0, more the closer they are, so a crowd nearby scores higher.
+     */
+    double preyScore(World world) {
+        return visibleCivilians(world).collect(Collector.of(
+                () -> new double[1],
+                (total, human) -> total[0] +=
+                        1.0 - distanceTo(human) / DETECTION_RADIUS,
+                (left, right) -> {
+                    left[0] += right[0];
+                    return left;
+                },
+                total -> total[0]));
+    }
+
+    /**
+     * Total prey score across every zombie, computed with a parallel stream.
+     * Thread-safe because each task only reads the world and its own zombie,
+     * the lambdas hold no shared mutable state, and the results are combined
+     * by DoubleStream.sum(). Call it between ticks, not during world.update().
+     */
+    static double totalPreyScore(World world) {
+        return world.getEntities().parallelStream()
+                .filter(entity -> entity instanceof Zombie)
+                .map(entity -> (Zombie) entity)
+                .mapToDouble(zombie -> zombie.preyScore(world))
+                .sum();
+    }
+
+    /**
+     * Speed boost from 1.0 up to 1.5 as more civilians crowd into view, plus
+     * a 0.25 lunge when anyone is in the CLOSE distance band.
+     */
+    double frenzyMultiplier(World world) {
+        double lunge = civiliansByDistanceBand(world)
+                .getOrDefault("CLOSE", 0L) > 0 ? 0.25 : 0.0;
+
+        return 1.0 + Math.min(0.5, preyScore(world) * 0.2) + lunge;
+    }
+
+    /** An infected human rises as a new zombie where they fell. */
+    private void spreadInfection(Human victim, World world) {
+        long zombieCount = world.getEntities().stream()
+                .filter(entity -> entity instanceof Zombie && entity.isActive())
+                .count();
+
+        if (zombieCount < MAX_ZOMBIES) {
+            world.addEntity(new Zombie(victim.getX(), victim.getY()));
         }
     }
 
-    /** Finds the closest active, visible civilian in range. */
-    private Human findTarget(World world) {
-        Human closest = null;
-        double closestDistance = DETECTION_RADIUS;
+    private void startChase(Human newTarget, World world) {
+        target = newTarget;
+        mode = Mode.CHASING;
+        mode.behaviour.accept(this, world);
+    }
 
-        List<Entity> nearby =
-                world.getNearby(this, DETECTION_RADIUS);
-
-        for (Entity entity : nearby) {
-            if (!(entity instanceof Human)
-                    || entity instanceof Military) {
-                continue;
-            }
-
-            Human human = (Human) entity;
-            double distance = distanceTo(human);
-
-            if (!human.isHidden()
-                    && distance < closestDistance) {
-                closest = human;
-                closestDistance = distance;
-            }
-        }
-
-        return closest;
+    private void stopChase() {
+        target = null;
+        mode = Mode.WANDERING;
     }
 
     private void chase(World world) {
@@ -129,7 +219,7 @@ public class Zombie extends Entity {
             move(
                     xDifference / distance,
                     yDifference / distance,
-                    CHASE_SPEED,
+                    CHASE_SPEED * frenzyMultiplier(world),
                     world
             );
         }
@@ -324,6 +414,41 @@ public class Zombie extends Entity {
         graphics.dispose();
 
         return sheet;
+    }
+
+    /** Zombie states; each lambda replaces what would be a State subclass. */
+    private enum Mode {
+        WANDERING((zombie, world) -> {
+            try {
+                zombie.startChase(zombie.findTarget(world), world);
+            } catch (TargetNotFoundException exception) {
+                zombie.wander(world);
+            }
+        }),
+        CHASING((zombie, world) -> {
+            Human target = zombie.target;
+
+            if (!target.isActive() || target.isHidden()
+                    || zombie.distanceTo(target) > DETECTION_RADIUS) {
+                zombie.stopChase();
+                zombie.wander(world);
+                return;
+            }
+
+            zombie.chase(world);
+
+            if (zombie.distanceTo(target) <= INFECT_DISTANCE) {
+                target.infect();
+                zombie.spreadInfection(target, world);
+                zombie.stopChase();
+            }
+        });
+
+        private final BiConsumer<Zombie, World> behaviour;
+
+        Mode(BiConsumer<Zombie, World> behaviour) {
+            this.behaviour = behaviour;
+        }
     }
 
     private enum Facing {
