@@ -31,4 +31,5 @@ jobs:
         working-directory: COMP2000
         run: |
           javac -cp out -d out test/*.java
+          # REVIEW: only HumanFoodTest runs here. Add each new test class (e.g. a Zombie test) as another java -ea line.
           java -ea -cp "out:src" HumanFoodTest

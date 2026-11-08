@@ -17,6 +17,9 @@ public class Building extends Entity {
         this(x, y, width, height, 10);
     }
 
+    // REVIEW: three levels of nested if/else. Throwing early for bad input
+    // (if (width <= 0 || height <= 0) throw ...; if (capacity <= 0) throw ...;)
+    // would flatten this. The image loading could also move into a helper method.
     public Building(double x, double y, int width, int height, int capacity) {
         super(x, y);
         if (width > 0 && height > 0) {
@@ -111,9 +114,11 @@ public class Building extends Entity {
         return this.height;
     }
 
+    // REVIEW: empty on purpose? A one-line comment saying so would help readers.
     public void update(World world) {
     }
 
+    // REVIEW: add @Override (and the same on update above) so the compiler checks the signature.
     public void draw(Graphics2D graphics) {
         graphics.drawImage(this.image, (int)this.getX(), (int)this.getY(), this.width, this.height, (ImageObserver)null);
     }

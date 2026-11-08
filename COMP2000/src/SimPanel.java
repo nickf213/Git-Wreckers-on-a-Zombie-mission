@@ -308,6 +308,8 @@ public class SimPanel extends JPanel {
 
         graphics2D.drawString(text, x, y);
     }
+    // REVIEW: this loop is a filter + map, so it could be a stream pipeline
+    // (stream().filter(entityType::isInstance).map(entityType::cast).toList()).
     private <T extends Entity> List<T> findEntities(
             Class<T> entityType
     ) {
@@ -322,6 +324,10 @@ public class SimPanel extends JPanel {
         return matchingEntities;
     }
 
+    // REVIEW: this matches class names as strings and is called four times per frame.
+    // One stream would do it in a single pass and not break on a rename:
+    // world.getEntities().stream().filter(Entity::isActive)
+    //     .collect(Collectors.groupingBy(e -> e.getClass().getSimpleName(), Collectors.counting()))
     private int countActiveEntitiesNamed(String className) {
         int count = 0;
         for (Entity entity : world.getEntities()) {

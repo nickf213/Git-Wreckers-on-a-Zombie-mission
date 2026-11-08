@@ -53,6 +53,9 @@ public class World {
         return Collections.unmodifiableList(entities);
     }
 
+    // REVIEW: this loop is a filter pipeline: entities.stream().filter(e -> e != source && e.isActive()
+    // && source.distanceTo(e) <= radius).toList(). Note World is not thread-safe, so any parallel
+    // stream over it must only read, and only between ticks.
     public List<Entity> getNearby(Entity source, double radius) {
         Objects.requireNonNull(source, "Source entity cannot be null");
 
